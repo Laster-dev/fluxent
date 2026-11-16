@@ -6,7 +6,14 @@ if is_plat("mingw") and is_mode("release") then
     set_symbols("none")
 end
 set_warnings("all")
-set_runtimes("MT")
+
+-- VC-LTL5 依赖 MD 动态运行时才能接管系统 UCRT/MSVCRT；Debug 模式保留原有 MT
+if is_plat("windows") and is_mode("release") then
+    set_runtimes("MD")
+    add_requires("vc-ltl5")
+else
+    set_runtimes("MT")
+end
 
 if is_mode("release") then
     set_optimize("faster")
@@ -31,6 +38,9 @@ add_defines("WIN32_LEAN_AND_MEAN", "NOMINMAX")
 
 target("fluxent")
     set_kind("static")
+    if is_plat("windows") and is_mode("release") then
+        add_packages("vc-ltl5", { public = true })
+    end
     if dev then
         add_deps("xent_core", "xtk", "cwinrt-rt",
                  "cwinrt-bindings-foundation",
