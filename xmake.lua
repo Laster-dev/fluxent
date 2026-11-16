@@ -7,7 +7,6 @@ if is_plat("mingw") and is_mode("release") then
 end
 set_warnings("all")
 
--- VC-LTL5 依赖 MD 动态运行时才能接管系统 UCRT/MSVCRT；Debug 模式保留原有 MT
 if is_plat("windows") and is_mode("release") then
     set_runtimes("MD")
     add_requires("vc-ltl5")
