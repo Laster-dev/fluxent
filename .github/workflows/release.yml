@@ -113,27 +113,6 @@ jobs:
           xmake-version: latest
           project-path: fluxent
 
-      - name: Setup VC-LTL5 (MSVC runtime replacement)
-        if: matrix.toolchain == 'msvc'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: pwsh
-        run: |
-          $headers = @{ Authorization = "Bearer $env:GITHUB_TOKEN" }
-          $rel = Invoke-RestMethod https://api.github.com/repos/Chuyu-Team/VC-LTL5/releases/latest -Headers $headers
-          $asset = $rel.assets | Where-Object { $_.name -like 'VC-LTL-*-Binary.7z' } | Select-Object -First 1
-          if (-not $asset) { throw 'VC-LTL5 binary asset not found' }
-
-          Invoke-WebRequest $asset.browser_download_url -OutFile vc-ltl.7z
-          7z x vc-ltl.7z -oC:\VC-LTL -y | Out-Null
-
-          # 动态获取最新的 TargetPlatform 与 VC 子目录（避免硬编码版本号失效）
-          $tpDir = (Get-ChildItem 'C:\VC-LTL\TargetPlatform' -Directory | Sort-Object Name -Descending | Select-Object -First 1).FullName
-          $vcDir = (Get-ChildItem 'C:\VC-LTL\VC' -Directory | Sort-Object Name -Descending | Select-Object -First 1).FullName
-
-          "VC_LTL_TP=$tpDir" | Out-File -Append -Encoding ascii $env:GITHUB_ENV
-          "VC_LTL_VC=$vcDir" | Out-File -Append -Encoding ascii $env:GITHUB_ENV
-
       - name: Setup llvm-mingw (clang + mingw runtime, x64 & arm64 targets)
         if: matrix.toolchain == 'mingw'
         env:
@@ -164,28 +143,12 @@ jobs:
           if ('${{ matrix.toolchain }}' -eq 'mingw') {
             xmake f -p mingw -a ${{ matrix.xarch }} --mingw="$env:LLVM_MINGW" -m release -y
           } else {
-            $arch = '${{ matrix.xarch }}'
-            $incDirs = "$env:VC_LTL_TP\header;$env:VC_LTL_VC\include"
-            $libDirs = "$env:VC_LTL_TP\lib\$arch;$env:VC_LTL_VC\lib\$arch"
-            xmake f -p windows -a $arch -m release --includedirs="$incDirs" --linkdirs="$libDirs" -y
+            xmake f -p windows -a ${{ matrix.xarch }} -m release -y
           }
 
       - name: Build gallery
         working-directory: fluxent
         run: xmake build fluxent_gallery_decl
-
-      - name: Verify VC-LTL linkage (MSVC only)
-        if: matrix.toolchain == 'msvc'
-        working-directory: fluxent
-        shell: pwsh
-        run: |
-          $exe = Get-ChildItem -Recurse build -Filter fluxent_gallery_decl.exe | Select-Object -First 1
-          $deps = dumpbin /dependents $exe.FullName 2>$null
-          if ($deps -match 'VCRUNTIME140') {
-            Write-Warning "Binary still references VCRUNTIME140; check xmake.lua runtime/target settings."
-          } else {
-            Write-Host "VC-LTL linkage verified: no VCRUNTIME140 dependency."
-          }
 
       - name: Stage artifact
         working-directory: fluxent
